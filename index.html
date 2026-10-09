@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CityPulse - Urban Exploration & Safety Navigator</title>
+    <meta name="description" content="Explore, navigate, and experience city life safely in Pune and beyond. Smart city insights, safe routes, citizen safety reports, and AI city assistant.">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        },
+                        accent: {
+                            500: '#06b6d4',
+                            600: '#0891b2',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLrfZkNXCgLNvZsmFii24iFJHDAGY2B1vpz13iOhBU12RAQRyuU1A0QYHTBiKCwcW-w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-BwHfrr4C9kmRkLw6bXFdzucb63ETucXkByuSwyO23254KChQfAARYUpdJciQUHnrU9O2iVEcQV3E1wM+MhdUYA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Custom scrollbar for dark UI */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        
+        /* Leaflet popup styling */
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: #0f172a !important;
+            color: #f8fafc !important;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        .leaflet-popup-content {
+            margin: 12px 14px;
+            line-height: 1.4;
+        }
+
+        .tab-btn.active {
+            color: #22c55e;
+            border-bottom: 2px solid #22c55e;
+        }
+
+        @media (max-width: 768px) {
+            .tab-btn.active {
+                border-bottom: none;
+                border-top: 2px solid #22c55e;
+            }
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased text-slate-100 bg-slate-950 overflow-x-hidden">
+
+    <!-- Top Header -->
+    <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-bold text-xl shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-city"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent leading-none">CityPulse</h1>
+                    <p class="text-xs text-slate-400 mt-0.5 hidden sm:block">Exploring, Experiencing & Navigating Urban Chaos</p>
+                </div>
+            </div>
+
+            <!-- Global City Search -->
+            <div class="relative flex-1 max-w-xs sm:max-w-md">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="citySearchInput" placeholder="Search city (e.g. Pune, Mumbai, Delhi)..." 
+                           class="w-full bg-slate-800/90 text-sm text-slate-100 pl-9 pr-10 py-1.5 rounded-lg border border-slate-700 focus:outline-none focus:border-emerald-500 transition-colors">
+                    <button id="searchCityBtn" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400 p-1 text-xs">
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+                <!-- Search Suggestions Dropdown -->
+                <div id="searchResults" class="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl hidden z-50 max-h-60 overflow-y-auto"></div>
+            </div>
+
+            <!-- Desktop Navigation Tabs -->
+            <nav class="hidden md:flex space-x-1">
+                <button onclick="switchTab('explore')" class="tab-btn active px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors" id="tab-btn-explore">
+                    <i class="fa-solid fa-compass mr-1.5"></i>Explore
+                </button>
+                <button onclick="switchTab('safety')" class="tab-btn px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors" id="tab-btn-safety">
+                    <i class="fa-solid fa-shield-halved mr-1.5"></i>Safety
+                </button>
+                <button onclick="switchTab('compare')" class="tab-btn px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors" id="tab-btn-compare">
+                    <i class="fa-solid fa-code-compare mr-1.5"></i>Compare
+                </button>
+                <button onclick="switchTab('ai')" class="tab-btn px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors" id="tab-btn-ai">
+                    <i class="fa-solid fa-robot mr-1.5"></i>AI Guide
+                </button>
+                <button onclick="switchTab('report')" class="tab-btn px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors" id="tab-btn-report">
+                    <i class="fa-solid fa-triangle-exclamation mr-1.5"></i>Report
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Onboarding Banner -->
+    <div id="onboardingBanner" class="bg-gradient-to-r from-emerald-900/40 via-slate-900 to-cyan-900/40 border-b border-emerald-500/20 px-4 py-2 text-xs text-center text-slate-300 flex justify-between items-center">
+        <span class="mx-auto">
+            <i class="fa-solid fa-bullhorn text-emerald-400 mr-2"></i>
+            Welcome to <strong>CityPulse Pune</strong>! Live safety zones, weather insights, citizen reporting, and intelligent trip comparisons.
+        </span>
+        <button onclick="document.getElementById('onboardingBanner').remove()" class="text-slate-400 hover:text-slate-200">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 flex flex-col gap-4 overflow-y-auto mb-16 md:mb-0">
+        
+        <!-- Live Weather & Smart City Insights Widget -->
+        <section id="weatherWidget" class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div id="weatherIcon" class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-2xl text-amber-400">
+                        <i class="fa-solid fa-sun"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="currentCityName" class="font-bold text-lg text-white">Pune, MH</h2>
+                            <span id="weatherTemp" class="text-emerald-400 font-semibold text-lg">28°C</span>
+                        </div>
+                        <p id="weatherDesc" class="text-xs text-slate-400">Partly Cloudy • Humidity: 55%</p>
+                    </div>
+                </div>
+
+                <!-- AQI & Outdoor Advice -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/50">
+                        <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Air Quality (AQI)</div>
+                        <div class="flex items-center gap-2">
+                            <span id="aqiVal" class="font-bold text-sm text-slate-200">42</span>
+                            <span id="aqiBadge" class="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Good</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/50">
+                        <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Outdoor Advisory</div>
+                        <div id="outdoorAdvice" class="text-xs font-semibold text-cyan-400">Best time to go out: 4:00 PM - 7:30 PM</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab Content Pages -->
+        <div class="flex-1 flex flex-col min-h-[500px]">
+            
+            <!-- TAB 1: EXPLORE -->
+            <div id="view-explore" class="tab-view flex-1 flex flex-col lg:flex-row gap-4">
+                <!-- Map Left Side -->
+                <div class="lg:w-7/12 h-[380px] lg:h-auto rounded-2xl border border-slate-800 overflow-hidden relative shadow-lg">
+                    <div id="exploreMap" class="w-full h-full z-10"></div>
+                    <!-- Map Float Controls -->
+                    <div class="absolute top-3 right-3 z-20 flex flex-col gap-2">
+                        <button onclick="locateUser()" title="Locate Me" class="bg-slate-900/90 hover:bg-slate-800 text-slate-200 p-2.5 rounded-xl border border-slate-700 shadow-md transition">
+                            <i class="fa-solid fa-crosshairs text-emerald-400"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Places & Categories Right Side -->
+                <div class="lg:w-5/12 flex flex-col gap-3">
+                    <!-- Category Chips -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                        <button onclick="filterCategory('all')" class="cat-chip active px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-bold whitespace-nowrap transition">All</button>
+                        <button onclick="filterCategory('attractions')" class="cat-chip px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap border border-slate-700 transition">Attractions</button>
+                        <button onclick="filterCategory('food')" class="cat-chip px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap border border-slate-700 transition">Food & Dining</button>
+                        <button onclick="filterCategory('heritage')" class="cat-chip px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap border border-slate-700 transition">Heritage</button>
+                        <button onclick="filterCategory('hotels')" class="cat-chip px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap border border-slate-700 transition">Hotels</button>
+                        <button onclick="filterCategory('budget')" class="cat-chip px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap border border-slate-700 transition">Budget</button>
+                    </div>
+
+                    <!-- Filter / Sort Header -->
+                    <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+                        <span id="placeCount">Showing 20 places</span>
+                        <div class="flex items-center gap-2">
+                            <label for="sortSelect">Sort:</label>
+                            <select id="sortSelect" onchange="sortPlaces(this.value)" class="bg-slate-800 border border-slate-700 text-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none">
+                                <option value="rating">Top Rated</option>
+                                <option value="distance">Nearest</option>
+                                <option value="safety">Safest</option>
+                                <option value="affordability">Most Affordable</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Place Cards Scrollable Container -->
+                    <div id="placeCardsContainer" class="flex-1 overflow-y-auto max-h-[480px] space-y-3 pr-1">
+                        <!-- Dynamic Place Cards Rendered Here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: SAFETY & NAVIGATION -->
+            <div id="view-safety" class="tab-view flex-1 hidden flex-col lg:flex-row gap-4">
+                <!-- Safety Map Left -->
+                <div class="lg:w-7/12 h-[380px] lg:h-auto rounded-2xl border border-slate-800 overflow-hidden relative shadow-lg">
+                    <div id="safetyMap" class="w-full h-full z-10"></div>
+                </div>
+
+                <!-- Safe Route Planner Right -->
+                <div class="lg:w-5/12 bg-slate-900/70 border border-slate-800 rounded-2xl p-4 flex flex-col gap-4">
+                    <div>
+                        <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                            <i class="fa-solid fa-shield-cat text-emerald-400"></i> Safe Route Checker
+                        </h3>
+                        <p class="text-xs text-slate-400">Calculates route using OSRM & scans for 500m proximity to high-accident/unsafe areas.</p>
+                    </div>
+
+                    <!-- Route Selector Inputs -->
+                    <div class="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                        <div>
+                            <label class="text-xs text-slate-400 block mb-1">Starting Location</label>
+                            <select id="routeStart" class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-lg p-2 text-sm focus:border-emerald-500">
+                                <option value="">Select origin point...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 block mb-1">Destination Location</label>
+                            <select id="routeEnd" class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-lg p-2 text-sm focus:border-emerald-500">
+                                <option value="">Select destination point...</option>
+                            </select>
+                        </div>
+                        <button onclick="calculateSafeRoute()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-route"></i> Calculate Safe Route
+                        </button>
+                    </div>
+
+                    <!-- Safety Warnings & Legend -->
+                    <div id="routeWarningBox" class="hidden p-3 rounded-xl border text-xs"></div>
+
+                    <div class="mt-auto border-t border-slate-800 pt-3">
+                        <h4 class="text-xs font-semibold text-slate-300 mb-2">Safety Legend & Active Zones</h4>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="flex items-center gap-2 bg-rose-950/30 border border-rose-800/40 p-2 rounded-lg">
+                                <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+                                <span class="text-rose-200">Accident Prone Area</span>
+                            </div>
+                            <div class="flex items-center gap-2 bg-amber-950/30 border border-amber-800/40 p-2 rounded-lg">
+                                <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                                <span class="text-amber-200">Unsafe at Night Zone</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: COMPARE PLACES -->
+            <div id="view-compare" class="tab-view flex-1 hidden flex-col gap-4">
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+                    <h3 class="font-bold text-lg text-white mb-1"><i class="fa-solid fa-scale-balanced text-emerald-400 mr-2"></i>Side-by-Side Place Comparison</h3>
+                    <p class="text-xs text-slate-400">Compare safety, cleanliness, affordability, ratings, and accessibility scores to make informed decisions.</p>
+                    
+                    <!-- Selection Controls -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-300 block mb-1">Place 1</label>
+                            <select id="compareSelect1" onchange="updateComparison()" class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl p-2.5 text-sm">
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-300 block mb-1">Place 2</label>
+                            <select id="compareSelect2" onchange="updateComparison()" class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl p-2.5 text-sm">
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Cards Container -->
+                <div id="compareResultContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                    <!-- Dynamic Comparative Bar Render -->
+                </div>
+            </div>
+
+            <!-- TAB 4: AI CITY GUIDE -->
+            <div id="view-ai" class="tab-view flex-1 hidden flex-col bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <!-- Chat Header -->
+                <div class="bg-slate-900 border-b border-slate-800 p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 font-bold">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white text-sm">CityPulse AI Assistant</h3>
+                            <p class="text-xs text-slate-400">Context-aware city advisor (Weather, Safety, Attractions)</p>
+                        </div>
+                    </div>
+                    <span class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <i class="fa-solid fa-circle text-[8px] mr-1"></i> Live Context
+                    </span>
+                </div>
+
+                <!-- Chat Box Messages -->
+                <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 min-h-[320px] max-h-[420px] bg-slate-950/40">
+                    <div class="flex gap-3 max-w-[85%]">
+                        <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs shrink-0">AI</div>
+                        <div class="bg-slate-800/80 p-3 rounded-2xl rounded-tl-none border border-slate-700/50 text-xs text-slate-200">
+                            Namaste! I am your CityPulse AI guide for Pune. Ask me about safe places to visit, late-night food options, budget routes, or local history!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Prompt Chips -->
+                <div class="p-2 border-t border-slate-800/80 bg-slate-900/40 flex items-center gap-2 overflow-x-auto text-xs">
+                    <span class="text-slate-500 whitespace-nowrap pl-2">Try asking:</span>
+                    <button onclick="askAI('Is Shaniwar Wada safe for evening visits?')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 whitespace-nowrap transition">
+                        Shaniwar Wada safety?
+                    </button>
+                    <button onclick="askAI('What are the best street food spots in Pune under budget?')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 whitespace-nowrap transition">
+                        Budget food spots?
+                    </button>
+                    <button onclick="askAI('Suggest a safe 1-day Pune heritage itinerary')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 whitespace-nowrap transition">
+                        1-day safe itinerary
+                    </button>
+                    <button onclick="askAI('Which areas should I avoid at night in Pune?')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 whitespace-nowrap transition">
+                        Night safety tips
+                    </button>
+                </div>
+
+                <!-- Chat Input Bar -->
+                <div class="p-3 border-t border-slate-800 bg-slate-900 flex items-center gap-2">
+                    <input type="text" id="chatInput" placeholder="Ask CityPulse AI about safety, places, weather..." 
+                           onkeydown="if(event.key==='Enter') sendChatMessage()"
+                           class="flex-1 bg-slate-800 text-slate-100 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+                    <button onclick="sendChatMessage()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm transition">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 5: CITIZEN REPORTING -->
+            <div id="view-report" class="tab-view flex-1 hidden flex-col lg:flex-row gap-4">
+                <!-- Submit Form -->
+                <div class="lg:w-5/12 bg-slate-900/70 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+                    <div>
+                        <h3 class="font-bold text-lg text-white"><i class="fa-solid fa-bullhorn text-amber-400 mr-2"></i>Report City Hazard / Issue</h3>
+                        <p class="text-xs text-slate-400">Help fellow citizens stay safe by flagging road hazards, lighting issues, or unsafe zones.</p>
+                    </div>
+
+                    <form id="citizenReportForm" onsubmit="handleReportSubmit(event)" class="space-y-3">
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1">Hazard Category</label>
+                            <select id="reportCategory" required class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl p-2.5 text-xs focus:border-emerald-500">
+                                <option value="Unsafe Spot">Unsafe Spot (Dim Lighting / Isolated)</option>
+                                <option value="Accident Prone">Accident Prone Crossing</option>
+                                <option value="Pothole/Road Hazard">Bad Roads / Dangerous Pothole</option>
+                                <option value="Waterlogging">Waterlogging / Drainage</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1">Location Title / Landmark</label>
+                            <input type="text" id="reportLocation" required placeholder="e.g., Near Swargate Flyover" class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl p-2 text-xs focus:border-emerald-500">
+                        </div>
+
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1">Description & Details</label>
+                            <textarea id="reportDesc" required rows="3" placeholder="Describe the safety hazard..." class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl p-2 text-xs focus:border-emerald-500"></textarea>
+                        </div>
+
+                        <div class="text-xs text-slate-400 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <span>Pin location on map:</span>
+                            <span id="selectedCoordsText" class="text-emerald-400 font-mono text-[11px]">Click map to set pin</span>
+                        </div>
+
+                        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition">
+                            <i class="fa-solid fa-plus-circle mr-1"></i> Submit Community Report
+                        </button>
+                    </form>
+                    
+                    <p class="text-[10px] text-slate-500 italic mt-1 text-center">Note: Community reports are stored on this device in localStorage.</p>
+                </div>
+
+                <!-- Live Community Reports List & Map -->
+                <div class="lg:w-7/12 flex flex-col gap-3">
+                    <div class="h-48 rounded-2xl border border-slate-800 overflow-hidden relative shadow-lg">
+                        <div id="reportMap" class="w-full h-full z-10"></div>
+                    </div>
+
+                    <h4 class="text-sm font-semibold text-slate-200">Active Community Safety Alerts</h4>
+                    <div id="citizenReportsList" class="flex-1 overflow-y-auto space-y-2 max-h-[300px]">
+                        <!-- Rendered community reports -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Desktop/Mobile Footer Attribution -->
+    <footer class="bg-slate-900/90 border-t border-slate-800 py-3 text-center text-xs text-slate-500 hidden md:block">
+        Data: OpenStreetMap, Open-Meteo, OSRM, sample and community datasets. Built for City Life Hackathon.
+    </footer>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 z-50 flex justify-around py-2 px-1">
+        <button onclick="switchTab('explore')" class="tab-btn active flex flex-col items-center gap-1 text-[10px] text-slate-400 py-1 px-2" id="mobile-tab-explore">
+            <i class="fa-solid fa-compass text-base"></i>
+            <span>Explore</span>
+        </button>
+        <button onclick="switchTab('safety')" class="tab-btn flex flex-col items-center gap-1 text-[10px] text-slate-400 py-1 px-2" id="mobile-tab-safety">
+            <i class="fa-solid fa-shield-halved text-base"></i>
+            <span>Safety</span>
+        </button>
+        <button onclick="switchTab('compare')" class="tab-btn flex flex-col items-center gap-1 text-[10px] text-slate-400 py-1 px-2" id="mobile-tab-compare">
+            <i class="fa-solid fa-code-compare text-base"></i>
+            <span>Compare</span>
+        </button>
+        <button onclick="switchTab('ai')" class="tab-btn flex flex-col items-center gap-1 text-[10px] text-slate-400 py-1 px-2" id="mobile-tab-ai">
+            <i class="fa-solid fa-robot text-base"></i>
+            <span>AI Guide</span>
+        </button>
+        <button onclick="switchTab('report')" class="tab-btn flex flex-col items-center gap-1 text-[10px] text-slate-400 py-1 px-2" id="mobile-tab-report">
+            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+            <span>Report</span>
+        </button>
+    </nav>
+
+    <script>
+        // GLOBAL STATE
+        let currentCity = { name: "Pune", lat: 18.5204, lng: 73.8567 };
+        let userLocation = { lat: 18.5204, lng: 73.8567 };
+        let activeCategory = 'all';
+        let exploreMap, safetyMap, reportMap;
+        let exploreMarkers = [];
+        let safetyZoneCircles = [];
+        let reportMapPin = null;
+        let selectedReportCoords = null;
+        let routeLayer = null;
+
+        // EMBEDDED PUNE FALLBACK DATASET (20 Real Places with attributes)
+        const punePlaces = [
+            { id: 1, name: "Shaniwar Wada", category: "heritage", lat: 18.5196, lng: 73.8553, safety: 8, cleanliness: 7, affordability: 9, rating: 8.8, accessibility: 8, description: "Historical fortification built in 1732, seat of the Peshwas of Maratha Empire.", story: "Built in 1732, Shaniwar Wada was the grand seat of the Peshwa rulers of the Maratha Empire. Legend speaks of its heroic past and haunted midnight folklore." },
+            { id: 2, name: "Aga Khan Palace", category: "heritage", lat: 18.5529, lng: 73.9015, safety: 9, cleanliness: 9, affordability: 8, rating: 9.1, accessibility: 9, description: "Palace with grand Italian arches and spacious lawns, historical Gandhi memorial.", story: "Built in 1892 by Sultan Muhammed Shah Aga Khan III to aid famine victims, it served as a prison for Mahatma Gandhi during the Quit India movement." },
+            { id: 3, name: "Srimant Dagadusheth Halwai Temple", category: "heritage", lat: 18.5164, lng: 73.8560, safety: 9, cleanliness: 9, affordability: 10, rating: 9.6, accessibility: 8, description: "Revered Hindu temple dedicated to Lord Ganesha, attracting millions.", story: "Founded by sweet maker Dagadusheth Halwai after losing his son to plague, Lokmanya Tilak transformed its celebration into a public festival." },
+            { id: 4, name: "Sinhagad Fort", category: "attractions", lat: 18.3663, lng: 73.7558, safety: 7, cleanliness: 8, affordability: 9, rating: 9.2, accessibility: 6, description: "Hill fortress offering scenic trekking and authentic Marathi pitla bhakri.", story: "Famous for Tanaji Malusare's heroic night climb and battle in 1670 to recapture the fort for Chhatrapati Shivaji Maharaj." },
+            { id: 5, name: "Vohuman Cafe", category: "food", lat: 18.5308, lng: 73.8784, safety: 8, cleanliness: 7, affordability: 9, rating: 8.7, accessibility: 8, description: "Iconic Irani cafe famous for cheese omelette, bun maska, and Irani chai.", story: "Serving Pune's breakfast seekers for decades, famous for its quirky house rules and rich buttery Irani tea." },
+            { id: 6, name: "Vaishali Restaurant", category: "food", lat: 18.5225, lng: 73.8415, safety: 9, cleanliness: 8, affordability: 8, rating: 8.9, accessibility: 9, description: "FC Road favorite known for crisp dosas, filter coffee, and vibrant crowds.", story: "Since 1951, Vaishali on Fergusson College Road has been the official cultural hub for student debates and morning filter coffee." },
+            { id: 7, name: "Osho Ashram / International Meditation Resort", category: "attractions", lat: 18.5367, lng: 73.8883, safety: 9, cleanliness: 10, affordability: 5, rating: 8.5, accessibility: 8, description: "Tranquil retreat nestled in lush Koregaon Park greenery.", story: "Established by Bhagwan Shree Rajneesh in 1974, it attracts global seekers with Zen gardens and meditation programs." },
+            { id: 8, name: "J W Marriott Pune", category: "hotels", lat: 18.5332, lng: 73.8322, safety: 10, cleanliness: 10, affordability: 3, rating: 9.4, accessibility: 10, description: "Luxury hotel on Senapati Bapat Road with fine dining and rooftop view.", story: "A modern Pune landmark symbolizing the city's transformation into an IT and luxury commercial powerhouse." },
+            { id: 9, name: "Koregaon Park Street Food Hub", category: "budget", lat: 18.5388, lng: 73.8920, safety: 8, cleanliness: 7, affordability: 9, rating: 8.6, accessibility: 8, description: "Bustling street stalls with Momos, Shawarmas, and artisanal teas.", story: "A vibrant fusion of traditional Marathi street snacks and cosmopolitan culinary trends." },
+            { id: 10, name: "Pataleshwar Cave Temple", category: "heritage", lat: 18.5262, lng: 73.8509, safety: 8, cleanliness: 8, affordability: 10, rating: 8.4, accessibility: 7, description: "8th-century rock-cut cave temple dedicated to Lord Shiva.", story: "Carved out of a single massive basalt rock during the Rashtrakuta period, left incomplete due to fault lines." },
+            { id: 11, name: "Rajiv Gandhi Zoological Park (Katraj)", category: "attractions", lat: 18.4529, lng: 73.8587, safety: 8, cleanliness: 8, affordability: 9, rating: 8.3, accessibility: 8, description: "Sprawling zoo with snake park and Katraj lake views.", story: "Created to preserve wildlife and educate citizens, housing tigers, leopards, and a famous reptile shelter." },
+            { id: 12, name: "Kayani Bakery", category: "food", lat: 18.5160, lng: 73.8780, safety: 8, cleanliness: 8, affordability: 9, rating: 9.0, accessibility: 8, description: "Legendary bakery famous for Shrewsbury biscuits and mawa cake.", story: "Established in 1955, queue lines form daily for freshly baked buttery Shrewsbury cookies." },
+            { id: 13, name: "Zostel Pune", category: "budget", lat: 18.5501, lng: 73.9110, safety: 9, cleanliness: 9, affordability: 9, rating: 8.9, accessibility: 8, description: "Vibrant backpacker hostel with community spaces for solo travelers.", story: "Providing affordable, secure, and modern social lodging for young travelers visiting Pune." },
+            { id: 14, name: "Saras Baug", category: "attractions", lat: 18.5008, lng: 73.8524, safety: 8, cleanliness: 8, affordability: 10, rating: 8.5, accessibility: 9, description: "Picturesque park with a historic temple sitting amidst a dry lake bed.", story: "Constructed by Nanasaheb Peshwa in 1750 as a pleasure garden and lake surrounding a small island temple." },
+            { id: 15, name: "Raja Dinkar Kelkar Museum", category: "heritage", lat: 18.5118, lng: 73.8522, safety: 9, cleanliness: 9, affordability: 9, rating: 8.7, accessibility: 8, description: "Intriguing collection of 20,000 Indian artifacts gathered by Dr. Kelkar.", story: "A single man's passion project dedicated to the memory of his deceased son, showcasing rare Indian craftsmanship." },
+            { id: 16, name: "Goodluck Cafe", category: "food", lat: 18.5173, lng: 73.8412, safety: 8, cleanliness: 7, affordability: 9, rating: 8.8, accessibility: 9, description: "Deccan Gymkhana Irani cafe famous for keema pav and chai.", story: "Established in 1935, legendary spot where legendary actors like Dev Anand used to hang out during FTII days." },
+            { id: 17, name: "Hotel Oakwood Pune", category: "hotels", lat: 18.5201, lng: 73.8402, safety: 9, cleanliness: 9, affordability: 6, rating: 8.4, accessibility: 9, description: "Comfortable mid-range stay near Deccan business districts.", story: "Trusted business stay providing modern amenities close to cultural monuments." },
+            { id: 18, name: "FC Road Youth Street Market", category: "budget", lat: 18.5230, lng: 73.8410, safety: 8, cleanliness: 7, affordability: 10, rating: 8.5, accessibility: 9, description: "Bustling shopping street with trendy clothes, footwear, and accessories.", story: "The beating pulse of Pune youth culture offering bargaining and latest college fashion." },
+            { id: 19, name: "Parvati Hill", category: "attractions", lat: 18.4962, lng: 73.8468, safety: 8, cleanliness: 8, affordability: 10, rating: 8.9, accessibility: 6, description: "Scenic hilltop with 103 steps offering panoramic views of Pune city.", story: "Second highest point in Pune, housing temples built during the Peshwa dynasty era." },
+            { id: 20, name: "Chhatrapati Sambhajinagar Route Hub", category: "hotels", lat: 18.5280, lng: 73.8700, safety: 8, cleanliness: 8, affordability: 7, rating: 8.2, accessibility: 9, description: "Transit hub with comfortable hotels and connectivity to heritage caves.", story: "Major road gateway connecting Pune to historic caves and industrial corridors." }
+        ];
+
+        // UNSAFE & ACCIDENT ZONES DATASET
+        const safetyZones = [
+            { id: 1, name: "Swargate Flyover Junction", type: "Accident Prone Area", lat: 18.5018, lng: 73.8580, radius: 400, severity: "High", desc: "Heavy blind spots and rapid bus lane merging." },
+            { id: 2, name: "Katraj Tunnel Highway Stretch", type: "Accident Prone Area", lat: 18.4450, lng: 73.8500, radius: 500, severity: "High", desc: "High speed downhill slope and poor night visibility." },
+            { id: 3, name: "Mutha Riverbed Outer Road", type: "Unsafe at Night Zone", lat: 18.5120, lng: 73.8430, radius: 350, severity: "Moderate", desc: "Dim street lighting and sparse pedestrian activity after 10 PM." },
+            { id: 4, name: "Hadapsar Bypass Chowk", type: "Accident Prone Area", lat: 18.5030, lng: 73.9260, radius: 450, severity: "High", desc: "Frequent heavy vehicle turning conflicts." }
+        ];
+
+        window.onload = function() {
+            initMaps();
+            fetchWeatherAndAQI(currentCity.lat, currentCity.lng);
+            renderPlaces();
+            populateComparisonDropdowns();
+            populateRouteDropdowns();
+            loadCitizenReports();
+            setupSearchAutocomplete();
+        };
+
+        function initMaps() {
+            // 1. Explore Map
+            exploreMap = L.map('exploreMap').setView([currentCity.lat, currentCity.lng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(exploreMap);
+
+            // 2. Safety Map
+            safetyMap = L.map('safetyMap').setView([currentCity.lat, currentCity.lng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(safetyMap);
+
+            // 3. Report Map
+            reportMap = L.map('reportMap').setView([currentCity.lat, currentCity.lng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(reportMap);
+
+            reportMap.on('click', function(e) {
+                selectedReportCoords = e.latlng;
+                document.getElementById('selectedCoordsText').innerText = `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+                if (reportMapPin) reportMap.removeLayer(reportMapPin);
+                reportMapPin = L.marker(e.latlng).addTo(reportMap);
+            });
+
+            renderSafetyZonesOnMap();
+        }
+
+        async function fetchWeatherAndAQI(lat, lng) {
+            try {
+                // Open-Meteo Weather
+                const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&hourly=relativehumidity_2m`);
+                const wData = await wRes.json();
+                
+                // Open-Meteo AQI
+                const aRes = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5`);
+                const aData = await aRes.json();
+
+                if (wData.current_weather) {
+                    const temp = Math.round(wData.current_weather.temperature);
+                    document.getElementById('weatherTemp').innerText = `${temp}°C`;
+                    document.getElementById('weatherDesc').innerText = `Wind: ${wData.current_weather.windspeed} km/h • Weather Code: ${wData.current_weather.weathercode}`;
+                }
+
+                if (aData.current && aData.current.pm2_5) {
+                    const pm25 = Math.round(aData.current.pm2_5);
+                    document.getElementById('aqiVal').innerText = pm25;
+                    const badge = document.getElementById('aqiBadge');
+                    if (pm25 < 30) {
+                        badge.innerText = "Good";
+                        badge.className = "text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                        document.getElementById('outdoorAdvice').innerText = "Best time to go out: Anytime (Great AQI)";
+                    } else if (pm25 < 60) {
+                        badge.innerText = "Moderate";
+                        badge.className = "text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                        document.getElementById('outdoorAdvice').innerText = "Best time to go out: Late afternoon (4 PM - 7 PM)";
+                    } else {
+                        badge.innerText = "Poor";
+                        badge.className = "text-xs px-2 py-0.5 rounded-full font-medium bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                        document.getElementById('outdoorAdvice').innerText = "Advisable to wear a mask outdoors";
+                    }
+                }
+            } catch (err) {
+                console.warn("Weather API fallback active:", err);
+            }
+        }
+
+        function renderPlaces() {
+            const container = document.getElementById('placeCardsContainer');
+            container.innerHTML = '';
+
+            // Clear map markers
+            exploreMarkers.forEach(m => exploreMap.removeLayer(m));
+            exploreMarkers = [];
+
+            let filtered = punePlaces.filter(p => activeCategory === 'all' || p.category === activeCategory);
+
+            document.getElementById('placeCount').innerText = `Showing ${filtered.length} places`;
+
+            filtered.forEach(place => {
+                // Calculate distance from current userLocation
+                place.dist = calculateDistance(userLocation.lat, userLocation.lng, place.lat, place.lng).toFixed(1);
+
+                // Add card
+                const card = document.createElement('div');
+                card.className = "bg-slate-900/80 border border-slate-800 rounded-xl p-3 hover:border-slate-700 transition shadow-sm hover:shadow-md";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start gap-2">
+                        <div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800/40">${place.category}</span>
+                            <h4 class="font-bold text-slate-100 text-sm mt-1">${escapeHtml(place.name)}</h4>
+                        </div>
+                        <span class="text-xs font-bold bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg border border-amber-500/20 flex items-center gap-1">
+                            <i class="fa-solid fa-star text-[10px]"></i> ${place.rating}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1 line-clamp-2">${escapeHtml(place.description)}</p>
+                    
+                    <div class="grid grid-cols-4 gap-1 mt-3 pt-2 border-t border-slate-800/80 text-[10px] text-center">
+                        <div class="bg-slate-950/40 p-1 rounded-lg">
+                            <div class="text-slate-500">Safety</div>
+                            <div class="font-bold text-emerald-400">${place.safety}/10</div>
+                        </div>
+                        <div class="bg-slate-950/40 p-1 rounded-lg">
+                            <div class="text-slate-500">Clean</div>
+                            <div class="font-bold text-cyan-400">${place.cleanliness}/10</div>
+                        </div>
+                        <div class="bg-slate-950/40 p-1 rounded-lg">
+                            <div class="text-slate-500">Budget</div>
+                            <div class="font-bold text-purple-400">${place.affordability}/10</div>
+                        </div>
+                        <div class="bg-slate-950/40 p-1 rounded-lg">
+                            <div class="text-slate-500">Access</div>
+                            <div class="font-bold text-indigo-400">${place.accessibility}/10</div>
+                        </div>
+                    </div>
+
+                    ${place.story ? `
+                        <div class="mt-2 bg-slate-950/60 p-2 rounded-lg text-xs border border-slate-800/60">
+                            <span class="text-amber-400 font-semibold block text-[10px]">Heritage Story:</span>
+                            <p class="text-slate-300 text-[11px] leading-snug">${escapeHtml(place.story)}</p>
+                        </div>
+                    ` : ''}
+
+                    <div class="flex items-center justify-between mt-2 pt-2 text-xs">
+                        <span class="text-slate-500"><i class="fa-solid fa-location-dot text-rose-400 mr-1"></i> ${place.dist} km away</span>
+                        <button onclick="focusOnMap(${place.lat}, ${place.lng}, '${escapeHtml(place.name)}')" class="text-emerald-400 hover:text-emerald-300 font-medium text-xs flex items-center gap-1">
+                            View on Map <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+
+                // Add map marker
+                const marker = L.marker([place.lat, place.lng]).addTo(exploreMap);
+                marker.bindPopup(`
+                    <div style="font-size: 12px;">
+                        <strong style="color: #22c55e;">${escapeHtml(place.name)}</strong><br/>
+                        Rating: ${place.rating}/10 | Safety: ${place.safety}/10<br/>
+                        <span style="color: #94a3b8;">${escapeHtml(place.description)}</span>
+                    </div>
+                `);
+                exploreMarkers.push(marker);
+            });
+        }
+
+        function renderSafetyZonesOnMap() {
+            safetyZones.forEach(zone => {
+                const color = zone.severity === 'High' ? '#f43f5e' : '#f59e0b';
+                
+                L.circle([zone.lat, zone.lng], {
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.35,
+                    radius: zone.radius
+                }).addTo(safetyMap).bindPopup(`
+                    <div style="font-size: 12px;">
+                        <strong style="color: ${color};">${zone.type}</strong><br/>
+                        <strong>${escapeHtml(zone.name)}</strong><br/>
+                        <span style="color: #cbd5e1;">${escapeHtml(zone.desc)}</span>
+                    </div>
+                `);
+
+                // Also reflect safety zones on Explore Map
+                L.circle([zone.lat, zone.lng], {
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.2,
+                    radius: zone.radius
+                }).addTo(exploreMap);
+            });
+        }
+
+        async function calculateSafeRoute() {
+            const startId = parseInt(document.getElementById('routeStart').value);
+            const endId = parseInt(document.getElementById('routeEnd').value);
+
+            if (!startId || !endId || startId === endId) {
+                alert("Please select distinct origin and destination locations.");
+                return;
+            }
+
+            const startPlace = punePlaces.find(p => p.id === startId);
+            const endPlace = punePlaces.find(p => p.id === endId);
+
+            try {
+                const url = `https://router.project-osrm.org/route/v1/driving/${startPlace.lng},${startPlace.lat};${endPlace.lng},${endPlace.lat}?overview=full&geometries=geojson`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (!data.routes || data.routes.length === 0) {
+                    throw new Error("No route found");
+                }
+
+                const route = data.routes[0];
+                const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+
+                if (routeLayer) safetyMap.removeLayer(routeLayer);
+
+                routeLayer = L.polyline(coordinates, { color: '#22c55e', weight: 5 }).addTo(safetyMap);
+                safetyMap.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+
+                // Check 500m proximity to safety hazards
+                let warningFound = false;
+                let warningMsg = "";
+
+                safetyZones.forEach(zone => {
+                    coordinates.forEach(pt => {
+                        const dist = calculateDistance(pt[0], pt[1], zone.lat, zone.lng) * 1000; // in meters
+                        if (dist <= 500) {
+                            warningFound = true;
+                            warningMsg = `⚠️ Route passes within ${Math.round(dist)}m of hazard zone: "${zone.name}" (${zone.type}). Exercise caution!`;
+                        }
+                    });
+                });
+
+                const warningBox = document.getElementById('routeWarningBox');
+                warningBox.classList.remove('hidden');
+                if (warningFound) {
+                    warningBox.className = "p-3 rounded-xl bg-amber-950/60 border border-amber-600/50 text-amber-200 text-xs";
+                    warningBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400 mr-2"></i> ${warningMsg}`;
+                } else {
+                    warningBox.className = "p-3 rounded-xl bg-emerald-950/60 border border-emerald-600/50 text-emerald-200 text-xs";
+                    warningBox.innerHTML = `<i class="fa-solid fa-shield-check text-emerald-400 mr-2"></i> ✅ Route verified clear! No high-hazard safety zones within 500m.`;
+                }
+
+            } catch (err) {
+                console.error("OSRM Routing error:", err);
+                alert("Could not fetch route geometry. Displaying direct line.");
+            }
+        }
+
+        function updateComparison() {
+            const id1 = parseInt(document.getElementById('compareSelect1').value);
+            const id2 = parseInt(document.getElementById('compareSelect2').value);
+
+            const p1 = punePlaces.find(p => p.id === id1) || punePlaces[0];
+            const p2 = punePlaces.find(p => p.id === id2) || punePlaces[1];
+
+            const container = document.getElementById('compareResultContainer');
+            container.innerHTML = `
+                ${renderCompareCard(p1)}
+                ${renderCompareCard(p2)}
+            `;
+        }
+
+        function renderCompareCard(p) {
+            const overallScore = ((p.safety + p.cleanliness + p.affordability + p.accessibility + p.rating) / 5).toFixed(1);
+            return `
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="text-[10px] font-bold uppercase text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800/40">${p.category}</span>
+                                <h4 class="font-bold text-base text-white mt-1">${escapeHtml(p.name)}</h4>
+                            </div>
+                            <div class="text-center bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                                <div class="text-[9px] text-slate-400 uppercase">Overall</div>
+                                <div class="text-base font-extrabold text-emerald-400">${overallScore}</div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 mt-4 text-xs">
+                            <div>
+                                <div class="flex justify-between text-slate-300 mb-1"><span>Safety Score</span><span class="font-bold text-emerald-400">${p.safety}/10</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden"><div class="bg-emerald-500 h-full rounded-full" style="width: ${p.safety * 10}%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-slate-300 mb-1"><span>Cleanliness</span><span class="font-bold text-cyan-400">${p.cleanliness}/10</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden"><div class="bg-cyan-500 h-full rounded-full" style="width: ${p.cleanliness * 10}%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-slate-300 mb-1"><span>Affordability</span><span class="font-bold text-purple-400">${p.affordability}/10</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden"><div class="bg-purple-500 h-full rounded-full" style="width: ${p.affordability * 10}%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-slate-300 mb-1"><span>Accessibility</span><span class="font-bold text-indigo-400">${p.accessibility}/10</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden"><div class="bg-indigo-500 h-full rounded-full" style="width: ${p.accessibility * 10}%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const query = input.value.trim();
+            if (!query) return;
+
+            appendChatMessage('user', query);
+            input.value = '';
+
+            const botMsgId = appendChatMessage('bot', '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Analyzing city context...');
+
+            try {
+                // Call Vercel Serverless Function /api/generate
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: query, city: currentCity.name })
+                });
+
+                if (!response.ok) throw new Error("API call failed");
+                const data = await response.json();
+                
+                updateChatMessage(botMsgId, data.text || data.reply || "Here is your requested city advice.");
+            } catch (err) {
+                // Fallback local response handler
+                setTimeout(() => {
+                    const fallbackReply = generateLocalAIReply(query);
+                    updateChatMessage(botMsgId, fallbackReply);
+                }, 600);
+            }
+        }
+
+        function askAI(prompt) {
+            document.getElementById('chatInput').value = prompt;
+            sendChatMessage();
+        }
+
+        function generateLocalAIReply(query) {
+            const q = query.toLowerCase();
+            if (q.includes('shaniwar wada')) {
+                return "Shaniwar Wada is generally very safe during official visiting hours (8 AM - 6:30 PM) with security personnel present. It is recommended to avoid dark outer corridors late at night.";
+            } else if (q.includes('food') || q.includes('budget')) {
+                return "For budget street food in Pune, try Vaishali on FC Road for South Indian, Kayani Bakery for Mawa Cake, or Koregaon Park food stalls for evening snacks under ₹150.";
+            } else if (q.includes('itinerary') || q.includes('1-day')) {
+                return "1-Day Pune Itinerary: Morning at Dagadusheth Temple & Shaniwar Wada, afternoon at Aga Khan Palace, tea at Vohuman Cafe, and evening sunset at Sinhagad Fort!";
+            } else if (q.includes('night') || q.includes('avoid')) {
+                return "Exercise extra caution around Swargate outer bus stops and Mutha riverbed bypass late at night due to sparse lighting. Stick to main lighted avenues like FC Road and MG Road.";
+            } else {
+                return `Based on Pune city pulse data: The weather is moderate, AQI is good, and heritage places like Aga Khan Palace and Shaniwar Wada are rated above 8.8/10 for safety!`;
+            }
+        }
+
+        function appendChatMessage(sender, text) {
+            const box = document.getElementById('chatMessages');
+            const msgId = 'msg-' + Date.now();
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex gap-3 max-w-[85%] ${sender === 'user' ? 'ml-auto flex-row-reverse' : ''}`;
+            
+            wrapper.innerHTML = `
+                <div class="w-7 h-7 rounded-lg ${sender === 'user' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'} flex items-center justify-center text-xs shrink-0 font-bold">
+                    ${sender === 'user' ? 'You' : 'AI'}
+                </div>
+                <div id="${msgId}" class="${sender === 'user' ? 'bg-emerald-950/60 border border-emerald-800/50' : 'bg-slate-800/80 border border-slate-700/50'} p-3 rounded-2xl ${sender === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'} text-xs text-slate-200">
+                    ${text}
+                </div>
+            `;
+            box.appendChild(wrapper);
+            box.scrollTop = box.scrollHeight;
+            return msgId;
+        }
+
+        function updateChatMessage(msgId, newText) {
+            const el = document.getElementById(msgId);
+            if (el) el.innerHTML = newText;
+        }
+
+        function handleReportSubmit(e) {
+            e.preventDefault();
+            const cat = document.getElementById('reportCategory').value;
+            const loc = document.getElementById('reportLocation').value;
+            const desc = document.getElementById('reportDesc').value;
+
+            const coords = selectedReportCoords || { lat: currentCity.lat, lng: currentCity.lng };
+
+            const newReport = {
+                id: Date.now(),
+                category: cat,
+                location: loc,
+                description: desc,
+                lat: coords.lat,
+                lng: coords.lng,
+                confirms: 1,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            let existing = JSON.parse(localStorage.getItem('citypulse_reports') || '[]');
+            existing.unshift(newReport);
+            localStorage.setItem('citypulse_reports', JSON.stringify(existing));
+
+            document.getElementById('citizenReportForm').reset();
+            document.getElementById('selectedCoordsText').innerText = "Click map to set pin";
+            selectedReportCoords = null;
+
+            loadCitizenReports();
+            alert("Report submitted successfully! Saved locally.");
+        }
+
+        function loadCitizenReports() {
+            const container = document.getElementById('citizenReportsList');
+            const reports = JSON.parse(localStorage.getItem('citypulse_reports') || '[]');
+
+            container.innerHTML = '';
+
+            if (reports.length === 0) {
+                container.innerHTML = `<div class="text-xs text-slate-500 p-3 text-center border border-dashed border-slate-800 rounded-xl">No active citizen reports logged yet.</div>`;
+                return;
+            }
+
+            reports.forEach(r => {
+                const isVerified = r.confirms >= 3;
+                const card = document.createElement('div');
+                card.className = "bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex justify-between items-center text-xs";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-amber-400">${escapeHtml(r.category)}</span>
+                            ${isVerified ? `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded-full font-bold"><i class="fa-solid fa-circle-check mr-1"></i> Verified</span>` : ''}
+                        </div>
+                        <h5 class="font-semibold text-slate-200 mt-0.5">${escapeHtml(r.location)}</h5>
+                        <p class="text-slate-400 text-[11px]">${escapeHtml(r.description)}</p>
+                    </div>
+                    <button onclick="confirmReport(${r.id})" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700 text-[11px] shrink-0 font-medium transition flex items-center gap-1">
+                        <i class="fa-solid fa-thumbs-up text-emerald-400"></i> ${r.confirms}
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function confirmReport(id) {
+            let reports = JSON.parse(localStorage.getItem('citypulse_reports') || '[]');
+            const idx = reports.findIndex(r => r.id === id);
+            if (idx !== -1) {
+                reports[idx].confirms += 1;
+                localStorage.setItem('citypulse_reports', JSON.stringify(reports));
+                loadCitizenReports();
+            }
+        }
+
+        function setupSearchAutocomplete() {
+            const input = document.getElementById('citySearchInput');
+            const resultsBox = document.getElementById('searchResults');
+
+            let timeout = null;
+            input.addEventListener('input', function() {
+                clearTimeout(timeout);
+                const q = this.value.trim();
+                if (q.length < 2) {
+                    resultsBox.classList.add('hidden');
+                    return;
+                }
+
+                timeout = setTimeout(async () => {
+                    try {
+                        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json`);
+                        const data = await res.json();
+                        
+                        resultsBox.innerHTML = '';
+                        if (data.results && data.results.length > 0) {
+                            data.results.forEach(city => {
+                                const item = document.createElement('div');
+                                item.className = "px-3 py-2 hover:bg-slate-800 cursor-pointer text-xs border-b border-slate-800/50 flex justify-between";
+                                item.innerHTML = `<span><strong>${city.name}</strong>, ${city.country || ''}</span><span class="text-slate-500">${city.admin1 || ''}</span>`;
+                                item.onclick = () => {
+                                    switchCity(city.name, city.latitude, city.longitude);
+                                    resultsBox.classList.add('hidden');
+                                    input.value = city.name;
+                                };
+                                resultsBox.appendChild(item);
+                            });
+                            resultsBox.classList.remove('hidden');
+                        }
+                    } catch (err) {
+                        console.warn("Geocoding failed", err);
+                    }
+                }, 300);
+            });
+        }
+
+        function switchCity(name, lat, lng) {
+            currentCity = { name, lat, lng };
+            document.getElementById('currentCityName').innerText = `${name}`;
+            exploreMap.setView([lat, lng], 13);
+            safetyMap.setView([lat, lng], 13);
+            reportMap.setView([lat, lng], 13);
+            fetchWeatherAndAQI(lat, lng);
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            
+            // Highlight active tab buttons
+            const desktopBtn = document.getElementById(`tab-btn-${tabId}`);
+            if (desktopBtn) desktopBtn.classList.add('active');
+
+            const mobileBtn = document.getElementById(`mobile-tab-${tabId}`);
+            if (mobileBtn) mobileBtn.classList.add('active');
+
+            // Invalidate Map Sizes on Tab Switch
+            setTimeout(() => {
+                exploreMap.invalidateSize();
+                safetyMap.invalidateSize();
+                reportMap.invalidateSize();
+            }, 200);
+        }
+
+        function filterCategory(cat) {
+            activeCategory = cat;
+            document.querySelectorAll('.cat-chip').forEach(btn => {
+                btn.classList.remove('bg-emerald-500', 'text-slate-950', 'font-bold');
+                btn.classList.add('bg-slate-800', 'text-slate-300');
+            });
+            event.target.classList.add('bg-emerald-500', 'text-slate-950', 'font-bold');
+            renderPlaces();
+        }
+
+        function sortPlaces(criterion) {
+            punePlaces.sort((a, b) => b[criterion] - a[criterion]);
+            renderPlaces();
+        }
+
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    exploreMap.setView([userLocation.lat, userLocation.lng], 14);
+                    L.marker([userLocation.lat, userLocation.lng]).addTo(exploreMap).bindPopup("You are here").openPopup();
+                    renderPlaces();
+                }, () => {
+                    alert("Geolocation access denied. Defaulting to city center.");
+                });
+            }
+        }
+
+        function focusOnMap(lat, lng, name) {
+            switchTab('explore');
+            exploreMap.setView([lat, lng], 15);
+        }
+
+        function populateComparisonDropdowns() {
+            const sel1 = document.getElementById('compareSelect1');
+            const sel2 = document.getElementById('compareSelect2');
+            sel1.innerHTML = ''; sel2.innerHTML = '';
+
+            punePlaces.forEach((p, i) => {
+                sel1.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)} (${p.category})</option>`;
+                sel2.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)} (${p.category})</option>`;
+            });
+
+            sel2.selectedIndex = 1;
+            updateComparison();
+        }
+
+        function populateRouteDropdowns() {
+            const rStart = document.getElementById('routeStart');
+            const rEnd = document.getElementById('routeEnd');
+            rStart.innerHTML = '<option value="">Select origin point...</option>';
+            rEnd.innerHTML = '<option value="">Select destination point...</option>';
+
+            punePlaces.forEach(p => {
+                rStart.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+                rEnd.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+            });
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
